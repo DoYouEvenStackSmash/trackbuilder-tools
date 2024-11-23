@@ -13,6 +13,7 @@ class ImageData:
         self.width = width
         self.height = height
         self.annotations = []
+        self.shift = [0.0,0.0]
 
     def get_text_name(self):
         # Convert the filename to the expected YOLO label filename format
@@ -80,7 +81,7 @@ def conv_to_yolo(loco):
         # if k < 78:
         #     continue
         annotations.extend(process_image(elem,fdict))
-        # break
+        break
         # break
         # exit()
         # exit()
@@ -145,12 +146,50 @@ def to_json(box_tuple,fid=None,error=-1, sid=-1, color=(255, 255, 255)):
         "is_prediction": False,
     }
 
-def process_image(img_object,fdict,X=3,Y=2):
+def check_bounds(v,p,b=[0,1]):
+  if v - p/2 < b[0]:
+    p = v + p/2
+    v = p/2
+  if v + p/2 > b[1]:
+    p = 1 - (v - p/2)
+    v = 1 - p/2
+  return v,p
+
+def shift_image(img_object, dx=0.0,dy=0.0):
+  distance_x = dx/img_object.width
+  distance_y = dy/img_object.height
+  img_object.shift = [dx,dy]
+  
+  for i,anno in enumerate(img_object.annotations):
+    (cls, cx, cy, w, h) = anno.get_attr()
+    cx = cx + distance_x
+    cy = cy + distance_y
+    cx,w = np.array(check_bounds(cx,w))/ (1-abs(distance_x))
+    cy,h = np.array(check_bounds(cy,h))/ (1-abs(distance_y))
+    
+    img_object.annotations[i] = ObjTuple(cls, cx, cy, w, h)
+  
+    
+      
+def process_image(img_object,fdict,X=3,Y=3):
   # img = cv2.imread(img_object.filename)
   buckets = {i:[] for i in range(X*Y)}
   # print(img_object.width)
   # print([i.get_attr() for i in img_object.annotations],'anno')
-  ans = process_annotations(img_object.annotations,w=640,h=640)
+  xshift,yshift = 0,0
+  shift_image(img_object,xshift,yshift)
+  ans = process_annotations(img_object.annotations,X,Y)
+  dims = np.array([img_object.width,img_object.height]) + np.array(img_object.shift)
+  for i,elem in enumerate(ans):
+    cls, cx, cy, w, h = elem[1]
+    w = w * dims[0] / (dims[0]/X)
+    cx = (cx%(1/X)) * (dims[0]/(dims[0]/X))
+    # w = (w) *  1920/ 640
+    h = h * dims[1] / (dims[1]/Y)
+    cy = (cy%(1/Y)) * (dims[1]/(dims[1]/Y))
+    
+
+    ans[i] = (elem[0],(cls,cx,cy,w,h))
   # print(ans,'ans')
   # print("foo")
   # exit()
@@ -164,6 +203,11 @@ def process_image(img_object,fdict,X=3,Y=2):
   image_path = img_object.filename
   base_name, ext = os.path.splitext(os.path.basename(image_path))
   img = cv2.imread(image_path)
+  
+  img_height ,img_width= img.shape[:2]
+  deltah = img_height - dims[1]
+  deltaw = img_width - dims[0]
+  img = img[deltah:,deltaw:]
   img_height ,img_width= img.shape[:2]
   # Calculate the dimensions of each piece
   piece_width = img_width // Y
@@ -219,23 +263,15 @@ def populate_annotations(fid,bounding_boxes,image_height=540,image_width=640):
     return annos
         
 
-def process_annotations(annotations,w=1920,h=1080,wd=640,ht=640):
+def process_annotations(annotations,X=3,Y=1):
     results = []
     for anno in annotations:
-        results.extend(g_get_splits(*anno.get_attr()))
+        results.extend(g_get_splits(*anno.get_attr(),X,Y))
     # print("\n\n",results)
     sortkey = lambda x: x[0]
     results = sorted(results,key=sortkey)
-
-    for i,elem in enumerate(results):
-        cls, cx, cy, w, h = elem[1]
-        
-        w = (w) * 1920 / 640
-        h  = h * 1080/540
-        cx = (cx%(1/3)) * (1920/640)
-        cy = (cy%(1/2)) * (1080/540)
-
-        results[i] = (elem[0],(cls,cx,cy,w,h))
+    return results
+    
     return results
   
 def main():

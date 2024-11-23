@@ -133,7 +133,7 @@ def get_splits(bbox_path, image_width=640, image_height=640):
     for line in s:
         s1 = line.split(" ")
         cls, (cx, cy, w, h) = int(s1[0]), [float(i) for i in s1[1:]]
-        results.extend(g_get_splits(cls, cx, cy, w, h,xarr,yarr))
+        results.extend(g_get_splits(cls, cx, cy, w, h))
     sortkey = lambda x: x[0]
     results = sorted(results, key=sortkey)
 
@@ -150,8 +150,7 @@ def get_splits(bbox_path, image_width=640, image_height=640):
 
 
 
-
-def g_get_splits(cls, cx, cy, w, h,X=3,Y=2):
+def g_get_splits(cls, cx, cy, w, h,X=3,Y=1):
     box1 = (cls, cx, cy, w, h)
     snx, sny = -1, -1
     sec = 1
@@ -160,7 +159,7 @@ def g_get_splits(cls, cx, cy, w, h,X=3,Y=2):
     elif cx > (X-1)/X:
         snx = X-1
     else:
-        for sec in range(2,X-1):
+        for sec in range(2,X):
             if (sec-1) / X <= cx < sec / X:
                 snx = sec-1
     
@@ -169,9 +168,9 @@ def g_get_splits(cls, cx, cy, w, h,X=3,Y=2):
     elif cy > (Y-1)/Y:
         sny = (Y-1) * X
     else:
-        for sec in range(2,Y-1):
+        for sec in range(2,Y):
             if (sec-1)/Y <= cy < sec/Y:
-                sny = X * sec-1
+                sny = X * (sec-1)
 
     bx = [box1]
     sx = [sny]
@@ -190,8 +189,9 @@ def g_get_splits(cls, cx, cy, w, h,X=3,Y=2):
         arcnum = []
         boxes = zip(splitx,splitx_secnums)
         for i,s in boxes:
-            
-            x, sn = split_y(i, [s], sec/Y+biasy, [(sec-1)*X, sec*X])
+            print(s)
+            # base_column = (s // Y)
+            x, sn = split_y(i, [s], sec/Y, [(sec-1)*X, sec*X])
             arx = arx + x
             arcnum = arcnum + sn
         bar = [i for i in zip(arx,arcnum)]
